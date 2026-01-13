@@ -1,0 +1,12 @@
+# Environnement virtuel
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Data & Models (souvent trop gros pour Git)
+*.h5
+*.csv
