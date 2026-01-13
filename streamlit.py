@@ -2,6 +2,14 @@ import streamlit as st
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Embedding, Dense, GlobalAveragePooling1D
 
+import tensorflow as tf
+tokenizer = tf.keras.preprocessing.text.Tokenizer(num_words=10000)
+tokenizer.fit_on_texts(df.review)
+
+word2idx = tokenizer.word_index
+idx2word = tokenizer.index_word
+vocab_size = tokenizer.num_words
+
 st.title("Modèle Word2Vec")
 
 embedding_dim = 300
