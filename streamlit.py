@@ -1,64 +1,68 @@
 import streamlit as st
-from tensorflow.keras import Sequential
-from tensorflow.keras.layers import Embedding, Dense, GlobalAveragePooling1D
-import pandas as pd
-
-df = pd.read_pickle('reviews_cleaned.pkl')
-
 import tensorflow as tf
-
-tokenizer = tf.keras.preprocessing.text.Tokenizer(num_words=10000)
-tokenizer.fit_on_texts(df.review)
-
-word2idx = tokenizer.word_index
-idx2word = tokenizer.index_word
-vocab_size = tokenizer.num_words
-
-st.title("Modèle Word2Vec")
-
-embedding_dim = 300
-model = Sequential()
-model.add(Embedding(vocab_size, embedding_dim))
-model.add(GlobalAveragePooling1D())
-model.add(Dense(vocab_size, activation='softmax'))
-
-model.load_weights("word2vec.h5")
-
-vectors = model.layers[0].trainable_weights[0].numpy()
+import pandas as pd
+import pickle
 import numpy as np
 from sklearn.preprocessing import Normalizer
 
-def dot_product(vec1, vec2):
-    return np.sum((vec1*vec2))
+@st.cache_resource
+def load_assets():
+    with open('tokenizer.pkl', 'rb') as handle:
+        tokenizer = pickle.load(handle)
+
+    model = tf.keras.models.load_model("word2vec_full.keras")
+    
+    vectors = model.layers[0].get_weights()[0]
+    
+    return tokenizer, model, vectors
+
+tokenizer, model, vectors = load_assets()
+
+word2idx = tokenizer.word_index
+idx2word = tokenizer.index_word
 
 def cosine_similarity(vec1, vec2):
-    return dot_product(vec1, vec2)/np.sqrt(dot_product(vec1, vec1)*dot_product(vec2, vec2))
+    dot = np.sum(vec1 * vec2)
+    norm = np.sqrt(np.sum(vec1**2)) * np.sqrt(np.sum(vec2**2))
+    return dot / norm
 
-def find_closest(word_index, vectors, number_closest):
-    list1=[]
-    query_vector = vectors[word_index]
+def find_closest(word, vectors, number_closest=10):
+    if word not in word2idx:
+        return None
+    
+    query_index = word2idx[word]
+    query_vector = vectors[query_index]
+    
+    results = []
     for index, vector in enumerate(vectors):
-        if not np.array_equal(vector, query_vector):
+        if index != query_index and index != 0: # 0 est souvent le padding
             dist = cosine_similarity(vector, query_vector)
-            list1.append([dist,index])
-    return np.asarray(sorted(list1,reverse=True)[:number_closest])
+            results.append([dist, index])
+            
+    return sorted(results, key=lambda x: x[0], reverse=True)[:number_closest]
 
-def compare(index_word1, index_word2, index_word3, vectors, number_closest):
-    list1=[]
-    query_vector = vectors[index_word1] - vectors[index_word2] + vectors[index_word3]
-    normalizer = Normalizer()
-    query_vector =  normalizer.fit_transform([query_vector], 'l2')
-    query_vector= query_vector[0]
-    for index, vector in enumerate(vectors):
-        if not np.array_equal(vector, query_vector):
-            dist = cosine_similarity(vector, query_vector)
-            list1.append([dist,index])
-    return np.asarray(sorted(list1,reverse=True)[:number_closest])
+st.title("🎬 Movie Review Word2Vec Explorer")
+st.subheader("Trouvez les mots sémantiquement proches")
 
-def print_closest(word, number=10):
-    index_closest_words = find_closest(word2idx[word], vectors, number)
-    for index_word in index_closest_words :
-        print(idx2word[index_word[1]]," -- ",index_word[0])
+user_word = st.text_input("Entrez un mot :", "zombie")
 
-#Exemple d'utilisation de la fonction print_closest
-print_closest('zombie')
+if st.button("Analyser"):
+    word_to_search = user_word.lower().strip()
+    
+    with st.spinner('Recherche en cours...'):
+        closest_words = find_closest(word_to_search, vectors)
+    
+    if closest_words:
+        st.success(f"Mots les plus proches de **{word_to_search}** :")
+        
+        for score, index in closest_words:
+            st.write(f"- **{idx2word[index]}** (score : {score:.4f})")
+    else:
+        st.error(f"Désolé, le mot **{word_to_search}** n'est pas dans le dictionnaire.")
+
+st.divider()
+st.subheader("Analogie (Roi - Homme + Femme)")
+col1, col2, col3 = st.columns(3)
+w1 = col1.text_input("Mot A", "king")
+w2 = col2.text_input("Mot B", "man")
+w3 = col3.text_input("Mot C", "woman")
