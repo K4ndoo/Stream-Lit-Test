@@ -10,9 +10,9 @@ def load_assets():
     with open('tokenizer.pkl', 'rb') as handle:
         tokenizer = pickle.load(handle)
 
-    model = tf.keras.models.load_model("word2vec_full.keras")
+    model = tf.keras.models.load_model("word2vec.h5")
     
-    vectors = model.layers[0].get_weights()[0]
+    vectors = model.layers[0].trainable_weights[0].numpy()
     
     return tokenizer, model, vectors
 
